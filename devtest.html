@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Fridge test">
+<title>Fridge device test</title>
+<style>
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: #eef1f3; color: #1f2a37; font: 500 17px -apple-system, system-ui, 'Helvetica Neue', sans-serif; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+body { box-sizing: border-box; padding: calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 10px; }
+h1 { margin: 0; font-size: 24px; }
+.row { display: flex; gap: 10px; align-items: center; }
+input { flex: 1 1 0; min-width: 0; height: 56px; box-sizing: border-box; padding: 0 16px; border: 2px solid #1f2a37; border-radius: 14px; font: inherit; font-size: 22px; -webkit-user-select: text; user-select: text; }
+button { height: 56px; padding: 0 20px; border: 0; border-radius: 28px; background: #1f2a37; color: #fff; font: inherit; font-size: 18px; font-weight: 600; }
+button.light { background: #fff; color: #1f2a37; }
+#padWrap { position: relative; flex: 1 1 0; min-height: 0; background: #fff; border-radius: 18px; overflow: hidden; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+#info { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 16px; font-size: 15px; }
+#info b { font-weight: 700; }
+#saved { font-size: 15px; color: #4b5866; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#probe { position: fixed; visibility: hidden; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+</style>
+</head>
+<body>
+<h1>Fridge device test</h1>
+<div class="row">
+  <input id="text" type="text" autocomplete="off" enterkeyhint="done" placeholder="Write here with the Pencil, or tap to type">
+  <button id="addText" type="button">Save text</button>
+</div>
+<div id="saved"></div>
+<div class="row">
+  <button id="scribbleFix" type="button" class="light">Scribble fix: off</button>
+  <button id="undo" type="button" class="light">Undo</button>
+  <button id="clear" type="button" class="light">Clear</button>
+  <span id="status" style="font-size: 15px"></span>
+</div>
+<div id="padWrap"><canvas id="pad"></canvas></div>
+<div id="info"></div>
+<div id="probe"></div>
+<script>
+(function () {
+  'use strict';
+  var KEY = 'devtest.strokes';
+  var TEXT_KEY = 'devtest.texts';
+  var FIX_KEY = 'devtest.scribbleFix';
+  var canvas = document.getElementById('pad');
+  var ctx = canvas.getContext('2d');
+  var info = document.getElementById('info');
+  var statusEl = document.getElementById('status');
+  var strokes = [];
+  var current = null;
+  var activeId = null;
+  var counts = { pen: 0, touch: 0, mouse: 0, ignoredTouch: 0, coalesced: 0, moves: 0 };
+  var rate = 0;
+  var rateStart = 0;
+  var rateMoves = 0;
+  var lastType = '-';
+  var lastPressure = '-';
+  var fix = false;
+
+  function read(key, fallback) {
+    try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch (e) { return fallback; }
+  }
+  function write(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (e) { statusEl.textContent = 'Save failed: ' + e.name; return false; }
+  }
+
+  strokes = read(KEY, []);
+  fix = read(FIX_KEY, false) === true;
+
+  function resize() {
+    var r = canvas.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(r.width * dpr);
+    canvas.height = Math.round(r.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    redraw();
+    showInfo();
+  }
+  function drawStroke(st) {
+    ctx.beginPath();
+    ctx.moveTo(st[0][0], st[0][1]);
+    if (st.length === 1) ctx.lineTo(st[0][0] + 0.1, st[0][1]);
+    for (var i = 1; i < st.length; i++) ctx.lineTo(st[i][0], st[i][1]);
+    ctx.stroke();
+  }
+  function redraw() {
+    var r = canvas.getBoundingClientRect();
+    ctx.clearRect(0, 0, r.width, r.height);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#1f2a37';
+    ctx.lineWidth = 3;
+    strokes.forEach(drawStroke);
+  }
+  function pt(e) {
+    var r = canvas.getBoundingClientRect();
+    return [Math.round((e.clientX - r.left) * 2) / 2, Math.round((e.clientY - r.top) * 2) / 2];
+  }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    lastType = e.pointerType;
+    lastPressure = e.pressure.toFixed(2);
+    if (e.pointerType === 'touch') { counts.ignoredTouch++; showInfo(); return; }
+    if (activeId !== null) return;
+    counts[e.pointerType] = (counts[e.pointerType] || 0) + 1;
+    activeId = e.pointerId;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    current = [pt(e)];
+    strokes.push(current);
+    rateStart = performance.now();
+    rateMoves = 0;
+    redraw();
+    showInfo();
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (e.pointerId !== activeId || !current) return;
+    var list = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+    if (list.length > 1) counts.coalesced += list.length - 1;
+    if (!list.length) list = [e];
+    for (var i = 0; i < list.length; i++) current.push(pt(list[i]));
+    counts.moves++;
+    rateMoves += list.length;
+    lastPressure = e.pressure.toFixed(2);
+    var a = current[current.length - list.length - 1] || current[0];
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]);
+    for (var j = current.length - list.length; j < current.length; j++) ctx.lineTo(current[j][0], current[j][1]);
+    ctx.stroke();
+  });
+  function end(e) {
+    if (e.pointerId !== activeId) return;
+    var secs = (performance.now() - rateStart) / 1000;
+    if (secs > 0.2) rate = Math.round(rateMoves / secs);
+    activeId = null;
+    current = null;
+    write(KEY, strokes);
+    showInfo();
+  }
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', function (e) { if (e.pointerId === activeId) statusEl.textContent = 'pointercancel during a stroke'; end(e); });
+
+  // Scribble workaround under test: cancel the default action of stylus touches on the canvas.
+  function stylusGuard(e) {
+    if (!fix) return;
+    var t = e.touches && e.touches[0];
+    if (t && t.touchType === 'stylus') e.preventDefault();
+  }
+  canvas.addEventListener('touchstart', stylusGuard, { passive: false });
+  canvas.addEventListener('touchmove', stylusGuard, { passive: false });
+  var fixBtn = document.getElementById('scribbleFix');
+  function showFix() { fixBtn.textContent = 'Scribble fix: ' + (fix ? 'on' : 'off'); }
+  fixBtn.addEventListener('click', function () { fix = !fix; write(FIX_KEY, fix); showFix(); });
+  showFix();
+
+  document.getElementById('undo').addEventListener('click', function () { strokes.pop(); write(KEY, strokes); redraw(); showInfo(); });
+  document.getElementById('clear').addEventListener('click', function () { strokes = []; write(KEY, strokes); redraw(); showInfo(); });
+
+  var texts = read(TEXT_KEY, []);
+  var textEl = document.getElementById('text');
+  var savedEl = document.getElementById('saved');
+  function showTexts() { savedEl.textContent = texts.length ? 'Saved text: ' + texts.join(' · ') : 'No saved text yet.'; }
+  function saveText() {
+    var v = textEl.value.trim();
+    if (!v) return;
+    texts.unshift(v);
+    texts = texts.slice(0, 8);
+    write(TEXT_KEY, texts);
+    textEl.value = '';
+    showTexts();
+  }
+  document.getElementById('addText').addEventListener('click', saveText);
+  textEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') saveText(); });
+  textEl.addEventListener('focusout', function () { window.scrollTo(0, 0); });
+  showTexts();
+
+  ['gesturestart', 'gesturechange', 'contextmenu', 'dblclick'].forEach(function (type) {
+    document.addEventListener(type, function (e) { e.preventDefault(); }, { passive: false });
+  });
+
+  function showInfo() {
+    var probe = getComputedStyle(document.getElementById('probe'));
+    var pad = canvas.getBoundingClientRect();
+    var rows = [
+      ['Standalone', String(navigator.standalone === true)],
+      ['Window', window.innerWidth + ' × ' + window.innerHeight],
+      ['Screen', screen.width + ' × ' + screen.height],
+      ['Pixel ratio', String(window.devicePixelRatio)],
+      ['Safe area T/R/B/L', [probe.paddingTop, probe.paddingRight, probe.paddingBottom, probe.paddingLeft].map(parseFloat).join(' / ')],
+      ['Orientation', window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'],
+      ['Pad size', Math.round(pad.width) + ' × ' + Math.round(pad.height)],
+      ['Strokes', String(strokes.length)],
+      ['Last pointer', lastType + ' (pressure ' + lastPressure + ')'],
+      ['Pen / mouse strokes', counts.pen + ' / ' + (counts.mouse || 0)],
+      ['Touches ignored', String(counts.ignoredTouch)],
+      ['Pen points/s', rate ? String(rate) : '-'],
+      ['Coalesced events', (typeof PointerEvent !== 'undefined' && 'getCoalescedEvents' in PointerEvent.prototype) ? 'yes (' + counts.coalesced + ' extra)' : 'no'],
+      ['Overscroll CSS', String(CSS.supports('overscroll-behavior', 'none'))],
+      ['Storage used', (JSON.stringify(strokes).length / 1024).toFixed(1) + ' KB'],
+      ['System', ((navigator.userAgent.match(/OS [\d_]+/) || [''])[0] + ' ' + (navigator.userAgent.match(/Version\/\S+/) || [''])[0]).trim() || navigator.userAgent]
+    ];
+    info.innerHTML = '';
+    rows.forEach(function (r) {
+      var d = document.createElement('div');
+      var b = document.createElement('b');
+      b.textContent = r[0] + ': ';
+      d.appendChild(b);
+      d.appendChild(document.createTextNode(r[1]));
+      info.appendChild(d);
+    });
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+})();
+</script>
+</body>
+</html>

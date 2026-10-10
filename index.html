@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Fridge notes</title>
+<style>
+:root {
+  --ink: #1f2a37;
+  --ink-soft: #3a4756;
+  --muted: #4b5866;
+  --hint: #5a6675;
+  --ground: #eef1f3;
+  --danger: #8f1d1d;
+  --rule: #e3e7ea;
+  --veil: rgba(255, 255, 255, 0.7);
+  --font: -apple-system, 'SF Pro Display', system-ui, 'Helvetica Neue', sans-serif;
+}
+html, body { margin: 0; height: 100%; }
+body { background: var(--ground); color: var(--ink); font-family: var(--font); -webkit-text-size-adjust: 100%; }
+[hidden] { display: none !important; }
+button, input { font-family: inherit; }
+button { cursor: pointer; }
+input { -webkit-appearance: none; appearance: none; }
+input::placeholder { color: var(--hint); }
+
+#app { position: absolute; left: 0; top: 0; right: 0; bottom: 0; box-sizing: border-box; display: flex; flex-direction: column; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+.screen { flex: 1 1 0; min-height: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; }
+
+/* Shared pill buttons */
+.pill { height: 48px; padding: 0 20px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; flex: none; border: 0; border-radius: 24px; background: var(--veil); color: var(--ink); font-size: 20px; font-weight: 600; white-space: nowrap; }
+.pill.dark { background: var(--ink); color: #ffffff; }
+.pill.danger { border: 2px solid var(--danger); background: #ffffff; color: var(--danger); }
+.pill.danger-solid { background: var(--danger); color: #ffffff; }
+.pill.tall { height: 56px; padding: 0 22px; border-radius: 28px; }
+.pill[aria-disabled="true"] { opacity: 0.45; }
+
+/* Home page */
+#home { padding: 24px 24px 16px; }
+.grid { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.col { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+.tile { position: relative; flex: 1 1 0; min-height: 0; overflow: hidden; box-sizing: border-box; padding: 24px 28px 28px; border-radius: 28px; display: flex; flex-direction: column; gap: 12px; }
+.tile .handle { position: absolute; right: 26px; top: 31%; width: 12px; height: 38%; border-radius: 6px; background: rgba(31, 42, 55, 0.16); pointer-events: none; }
+.tile-open { position: absolute; left: 0; top: 0; right: 0; bottom: 0; box-sizing: border-box; padding: 24px 58px 28px 28px; display: flex; align-items: flex-end; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.tap-hint { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; pointer-events: none; font-size: 22px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink-soft); }
+.tile-name { font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; overflow-wrap: normal; word-break: normal; -webkit-hyphens: none; hyphens: none; }
+.tile-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; min-height: 48px; pointer-events: none; }
+.tile-actions .pill { pointer-events: auto; }
+.tile-label, .tile-edit { flex: 1 1 0; min-height: 0; display: flex; align-items: flex-end; padding-right: 30px; }
+.tile-edit input { width: 100%; box-sizing: border-box; height: 76px; padding: 0 16px; border: 3px solid var(--ink); border-radius: 16px; background: #ffffff; color: var(--ink); font-size: 36px; font-weight: 700; }
+@keyframes rise { from { flex-grow: 0.001; opacity: 0; } to { flex-grow: 1; opacity: 1; } }
+.rise { animation: rise 320ms ease-out; }
+
+.homebar { position: relative; height: 48px; flex: none; display: flex; align-items: center; gap: 16px; }
+.homebar .status { font-size: 18px; font-weight: 500; color: var(--muted); }
+.menu { position: absolute; left: 0; bottom: 58px; z-index: 5; width: 260px; box-sizing: border-box; padding: 8px; display: flex; flex-direction: column; gap: 4px; border-radius: 20px; background: #ffffff; box-shadow: 0 8px 28px rgba(31, 42, 55, 0.22); }
+.menu button { height: 56px; padding: 0 16px; display: flex; align-items: center; gap: 12px; border: 0; border-radius: 14px; background: transparent; color: var(--ink); font-size: 20px; font-weight: 600; text-align: left; }
+.menu button.warn { color: var(--danger); }
+.undobar { display: flex; align-items: center; gap: 12px; box-sizing: border-box; background: var(--ink); color: #ffffff; }
+.undobar span { flex: 1 1 0; min-width: 0; font-size: 19px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.undobar button { height: 48px; padding: 0 22px; flex: none; border: 0; border-radius: 24px; background: #ffffff; color: var(--ink); font-size: 19px; font-weight: 700; }
+.homebar .undobar { margin-left: auto; max-width: 480px; height: 48px; padding: 0 0 0 20px; border-radius: 24px; }
+
+/* Fridge screen */
+#fridge { padding: 16px 24px; }
+.toolbar { height: 56px; flex: none; display: flex; align-items: center; gap: 12px; }
+.toolbar h1 { flex: 1 1 0; min-width: 0; margin: 0 0 0 8px; font-size: 32px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toolbar .pill:not(.dark) { background: rgba(255, 255, 255, 0.75); }
+.toolbar .pill.dark[aria-pressed="true"] { background: var(--ink); }
+#homeBtn { padding: 0 22px 0 14px; gap: 8px; }
+#listBtn { min-width: 150px; }
+.divider { width: 2px; height: 32px; margin: 0 4px; flex: none; border-radius: 1px; background: rgba(31, 42, 55, 0.25); }
+.pad-area { position: relative; flex: 1 1 0; min-height: 0; }
+.pad { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 20px; background: #ffffff; overflow: hidden; }
+.pad canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; touch-action: none; }
+.pad-hint { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; pointer-events: none; font-size: 24px; font-weight: 500; color: var(--hint); }
+.addrow { height: 64px; flex: none; display: flex; align-items: center; gap: 12px; }
+.addrow label { font-size: 20px; font-weight: 600; white-space: nowrap; }
+.addrow input { flex: 1 1 0; min-width: 0; height: 64px; box-sizing: border-box; padding: 0 20px; border: 2px solid var(--ink); border-radius: 16px; background: #ffffff; color: var(--ink); font-size: 24px; font-weight: 500; }
+.addrow button { height: 64px; padding: 0 30px; flex: none; border: 0; border-radius: 16px; background: var(--ink); color: #ffffff; font-size: 22px; font-weight: 600; }
+
+/* Banner for save problems and unreadable data */
+.banner { position: fixed; left: 50%; top: calc(12px + env(safe-area-inset-top)); z-index: 20; transform: translateX(-50%); width: max-content; max-width: calc(100% - 48px); box-sizing: border-box; display: flex; align-items: center; gap: 16px; padding: 8px 8px 8px 20px; border-radius: 18px; background: var(--ink); color: #ffffff; font-size: 19px; font-weight: 500; line-height: 1.3; box-shadow: 0 8px 28px rgba(31, 42, 55, 0.3); }
+.banner.error { background: var(--danger); }
+.banner button { height: 48px; padding: 0 22px; flex: none; border: 0; border-radius: 24px; background: #ffffff; color: var(--ink); font-size: 19px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="home" class="screen" aria-label="Fridges">
+    <div id="grid" class="grid"></div>
+    <div class="homebar">
+      <button id="tabsBtn" type="button" class="pill dark" aria-expanded="false" style="padding: 0 18px 0 22px">Tabs
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l5-5 5 5"/></svg>
+      </button>
+      <button id="doneDeletingBtn" type="button" class="pill dark" style="padding: 0 22px" hidden>Done deleting</button>
+      <span id="homeStatus" class="status"></span>
+      <div id="tabsMenu" class="menu" hidden>
+        <button id="addTabBtn" type="button">
+          <svg aria-hidden="true" width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M11 4v14M4 11h14"/></svg>
+          Add tab
+        </button>
+        <button id="deleteTabBtn" type="button" class="warn">
+          <svg aria-hidden="true" width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 11h14"/></svg>
+          Delete a tab
+        </button>
+      </div>
+      <div id="tabUndo" class="undobar" role="status" hidden><span></span><button type="button">Undo</button></div>
+    </div>
+  </section>
+
+  <section id="fridge" class="screen" hidden>
+    <div class="toolbar">
+      <button id="homeBtn" type="button" class="pill dark tall">
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 4.5L7 11l6.5 6.5"/></svg>
+        Home
+      </button>
+      <h1 id="fridgeName"></h1>
+      <button id="undoBtn" type="button" class="pill tall">Undo</button>
+      <button id="eraseBtn" type="button" class="pill tall" aria-pressed="false">Erase</button>
+      <button id="clearBtn" type="button" class="pill tall">Clear</button>
+      <span class="divider" aria-hidden="true"></span>
+      <button id="listBtn" type="button" class="pill dark tall" aria-expanded="false">
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 6h14M4 11h14M4 16h14"/></svg>
+        <span id="listLabel">List</span>
+      </button>
+    </div>
+    <div id="padArea" class="pad-area">
+      <div id="pad" class="pad">
+        <span id="padHint" class="pad-hint">Write notes here with the Pencil</span>
+        <canvas id="padCanvas" role="img" aria-label="Handwritten notes for this fridge"></canvas>
+      </div>
+    </div>
+    <div class="addrow">
+      <label for="addInput">Add to list</label>
+      <input id="addInput" type="text" autocomplete="off" enterkeyhint="done" maxlength="200" placeholder="Write an item with the Pencil, or tap to type">
+      <button id="addBtn" type="button">Add</button>
+    </div>
+  </section>
+</div>
+<div id="banner" class="banner" role="alert" hidden><span></span><button type="button">OK</button></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- Settings ---------- */
+  const KEY = 'fridgeNotes';
+  const VERSION = 1;
+  const COLORS = ['#bfd6f2', '#bfe6d2', '#f8d2ba', '#d9cdf2', '#f4e4a6', '#f4c8d6'];
+  const MIN_TABS = 3;
+  const MAX_TABS = 6;
+  const LABEL_MAX = 24;
+  const ITEM_MAX = 200;
+  const REMOVED_MAX = 20;
+  const UNDO_MS = 10000;
+  // The ink page: strokes are stored in these units and the pad shows the page scaled to fit.
+  const PAGE_W = 976;
+  const PAGE_H = 592;
+  const FONT = "-apple-system, 'SF Pro Display', system-ui, 'Helvetica Neue', sans-serif";
+
+  /* ---------- Small helpers ---------- */
+  const $ = (id) => document.getElementById(id);
+
+  function el(tag, props) {
+    const node = document.createElement(tag);
+    Object.keys(props || {}).forEach((k) => {
+      const v = props[k];
+      if (v == null || v === false) return;
+      if (k === 'class') node.className = v;
+      else if (k === 'style') node.style.cssText = v;
+      else if (k.slice(0, 2) === 'on') node.addEventListener(k.slice(2), v);
+      else node.setAttribute(k, v === true ? '' : v);
+    });
+    for (let i = 2; i < arguments.length; i++) {
+      const child = arguments[i];
+      if (child == null || child === false) continue;
+      node.append(child.nodeType ? child : document.createTextNode(String(child)));
+    }
+    return node;
+  }
+
+  function pill(label, kind, onclick) {
+    return el('button', { type: 'button', class: 'pill' + (kind ? ' ' + kind : ''), onclick: onclick }, label);
+  }
+
+  /* ---------- Ink encoding ----------
+     A stroke is a flat list of page coordinates [x0, y0, x1, y1, ...] at half-point precision.
+     Saved as a string of integer deltas in half points: "x0,y0,dx1,dy1,...". */
+  function encodePoints(pts) {
+    const out = [];
+    let px = 0;
+    let py = 0;
+    for (let i = 0; i < pts.length; i += 2) {
+      const x = Math.round(pts[i] * 2);
+      const y = Math.round(pts[i + 1] * 2);
+      out.push(x - px, y - py);
+      px = x;
+      py = y;
+    }
+    return out.join(',');
+  }
+
+  function decodePoints(str, k) {
+    const parts = str.split(',');
+    const pts = new Array(parts.length);
+    let x = 0;
+    let y = 0;
+    for (let i = 0; i < parts.length; i += 2) {
+      x += Number(parts[i]);
+      y += Number(parts[i + 1]);
+      pts[i] = clamp((x / 2) * k, 0, PAGE_W);
+      pts[i + 1] = clamp((y / 2) * k, 0, PAGE_H);
+    }
+    return pts;
+  }
+
+  function makeStroke(pts) {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < pts.length; i += 2) {
+      minX = Math.min(minX, pts[i]);
+      maxX = Math.max(maxX, pts[i]);
+      minY = Math.min(minY, pts[i + 1]);
+      maxY = Math.max(maxY, pts[i + 1]);
+    }
+    return { pts: pts, enc: encodePoints(pts), box: [minX, minY, maxX, maxY] };
+  }
+
+  function clamp(v, lo, hi) {
+    return v < lo ? lo : v > hi ? hi : v;
+  }
+
+  /* ---------- Storage ---------- */
+  function emptyFridge() {
+    return { items: [], removed: [], strokes: [] };
+  }
+
+  function freshData() {
+    const tabs = [0, 1, 2].map((i) => ({ id: i + 1, name: 'Fridge ' + (i + 1), color: i }));
+    const fridges = {};
+    tabs.forEach((t) => { fridges[t.id] = emptyFridge(); });
+    return { active: null, nextTabId: 4, nextItemId: 1, tabs: tabs, fridges: fridges };
+  }
+
+  const STROKE_RE = /^-?\d+(,-?\d+)*$/;
+
+  // Turns a parsed saved object into app data. Returns null when nothing usable is there;
+  // `lossy` is true when some entries had to be dropped or repaired.
+  function sanitize(raw) {
+    if (!raw || typeof raw !== 'object' || raw.v !== VERSION || !Array.isArray(raw.tabs)) return null;
+    let lossy = false;
+    const tabs = [];
+    const ids = new Set();
+    const colors = new Set();
+    raw.tabs.forEach((t) => {
+      if (tabs.length >= MAX_TABS || !t || !Number.isInteger(t.id) || t.id < 1 || ids.has(t.id)) { lossy = true; return; }
+      const name = typeof t.name === 'string' ? t.name.trim().slice(0, LABEL_MAX) : '';
+      const okColor = Number.isInteger(t.color) && t.color >= 0 && t.color < COLORS.length && !colors.has(t.color);
+      if (!name || !okColor) lossy = true;
+      ids.add(t.id);
+      if (okColor) colors.add(t.color);
+      tabs.push({ id: t.id, name: name || 'Fridge ' + (tabs.length + 1), color: okColor ? t.color : -1 });
+    });
+    if (!tabs.length) return null;
+    const freeColor = () => {
+      const c = COLORS.findIndex((_, i) => !colors.has(i));
+      colors.add(c);
+      return c;
+    };
+    tabs.forEach((t) => { if (t.color < 0) t.color = freeColor(); });
+    let nextTabId = Number.isInteger(raw.nextTabId) ? raw.nextTabId : 1;
+    tabs.forEach((t) => { nextTabId = Math.max(nextTabId, t.id + 1); });
+    while (tabs.length < MIN_TABS) {
+      lossy = true;
+      tabs.push({ id: nextTabId++, name: 'Fridge ' + (tabs.length + 1), color: freeColor() });
+    }
+
+    const rawFridges = raw.fridges && typeof raw.fridges === 'object' ? raw.fridges : {};
+    const fridges = {};
+    const itemIds = new Set();
+    const needIds = [];
+    let nextItemId = Number.isInteger(raw.nextItemId) ? raw.nextItemId : 1;
+    const cleanList = (list, max) => {
+      if (list === undefined) return [];
+      if (!Array.isArray(list)) { lossy = true; return []; }
+      const out = [];
+      list.forEach((it) => {
+        const ok = it && typeof it.text === 'string' && it.text.trim() && Number.isFinite(it.added);
+        if (!ok || out.length >= max) { lossy = true; return; }
+        const item = { id: it.id, text: it.text.trim().slice(0, ITEM_MAX), added: it.added };
+        if (Number.isFinite(it.removedAt)) item.removedAt = it.removedAt;
+        if (!Number.isInteger(item.id) || item.id < 1 || itemIds.has(item.id)) needIds.push(item);
+        else { itemIds.add(item.id); nextItemId = Math.max(nextItemId, item.id + 1); }
+        out.push(item);
+      });
+      return out;
+    };
+    tabs.forEach((t) => {
+      const f = rawFridges[t.id];
+      const fridge = emptyFridge();
+      fridges[t.id] = fridge;
+      if (f === undefined) return;
+      if (!f || typeof f !== 'object') { lossy = true; return; }
+      fridge.items = cleanList(f.items, Infinity);
+      fridge.removed = cleanList(f.removed, REMOVED_MAX);
+      const ink = f.ink;
+      if (ink === undefined) return;
+      const okInk = ink && Array.isArray(ink.s) && ink.w > 0 && ink.h > 0 && Number.isFinite(ink.w) && Number.isFinite(ink.h);
+      if (!okInk) { lossy = true; return; }
+      // A page saved at another size is scaled to fit this one, never cropped.
+      const k = Math.min(PAGE_W / ink.w, PAGE_H / ink.h);
+      ink.s.forEach((s) => {
+        if (typeof s !== 'string' || !STROKE_RE.test(s) || s.split(',').length % 2) { lossy = true; return; }
+        fridge.strokes.push(makeStroke(decodePoints(s, k)));
+      });
+    });
+    needIds.forEach((item) => { item.id = nextItemId++; });
+    const active = tabs.some((t) => t.id === raw.active) ? raw.active : null;
+    return { data: { active: active, nextTabId: nextTabId, nextItemId: nextItemId, tabs: tabs, fridges: fridges }, lossy: lossy };
+  }
+
+  function keepUnreadable(raw) {
+    try { localStorage.setItem(KEY + '.unreadable.' + new Date().toISOString(), raw); } catch (e) { /* no room for the copy */ }
+  }
+
+  function load() {
+    let raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (e) { return { data: freshData(), notice: '' }; }
+    if (raw === null) return { data: freshData(), notice: '' };
+    let result = null;
+    try { result = sanitize(JSON.parse(raw)); } catch (e) { result = null; }
+    if (result && !result.lossy) return { data: result.data, notice: '' };
+    keepUnreadable(raw);
+    if (result) {
+      return { data: result.data, notice: 'Part of the saved notes couldn’t be read. Everything else is here, and the original copy is kept on this iPad.', resave: true };
+    }
+    return { data: freshData(), notice: 'The saved notes couldn’t be read, so the board started fresh. The unreadable copy is kept on this iPad.', resave: true };
+  }
+
+  function serialize() {
+    const fridges = {};
+    data.tabs.forEach((t) => {
+      const f = data.fridges[t.id];
+      fridges[t.id] = { items: f.items, removed: f.removed, ink: { w: PAGE_W, h: PAGE_H, s: f.strokes.map((st) => st.enc) } };
+    });
+    return JSON.stringify({ v: VERSION, active: data.active, nextTabId: data.nextTabId, nextItemId: data.nextItemId, tabs: data.tabs, fridges: fridges });
+  }
+
+  let saveTimer = 0;
+  let saveFailed = false;
+
+  // Writes everything at once. A failed write leaves the last good copy in place.
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = 0;
+    try {
+      localStorage.setItem(KEY, serialize());
+    } catch (e) {
+      saveFailed = true;
+      bannerDismissed = false;
+      renderBanner();
+      return false;
+    }
+    if (saveFailed) {
+      saveFailed = false;
+      renderBanner();
+    }
+    return true;
+  }
+
+  // For typing: save shortly after the last keystroke.
+  function saveSoon() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 300);
+  }
+
+  function flushSave() {
+    if (saveTimer) save();
+  }
+
+  /* ---------- State ---------- */
+  const loaded = load();
+  const data = loaded.data;
+  let notice = loaded.notice;
+  let bannerDismissed = false;
+
+  const ui = {
+    menuOpen: false,
+    deleteMode: false,
+    confirmId: null,
+    editingId: null,
+    editingOriginal: '',
+    addedId: null,
+    tabUndo: null
+  };
+
+  const tabById = (id) => data.tabs.find((t) => t.id === id) || null;
+  const activeTab = () => (data.active == null ? null : tabById(data.active));
+
+  /* ---------- Banner ---------- */
+  const banner = $('banner');
+  banner.querySelector('button').addEventListener('click', () => {
+    if (saveFailed) bannerDismissed = true;
+    else notice = '';
+    renderBanner();
+  });
+
+  function renderBanner() {
+    const text = saveFailed && !bannerDismissed
+      ? 'Couldn’t save on this iPad. Notes saved earlier are safe, but the latest change isn’t saved yet.'
+      : notice;
+    banner.hidden = !text;
+    banner.classList.toggle('error', saveFailed && !bannerDismissed);
+    banner.querySelector('span').textContent = text;
+  }
+
+  /* ---------- Home page ---------- */
+  const grid = $('grid');
+  const tabsBtn = $('tabsBtn');
+  const tabsMenu = $('tabsMenu');
+  const measure = document.createElement('canvas').getContext('2d');
+
+  // Largest size (52 down to 10) at which the label wraps between whole words and fits the box.
+  function fitSize(text, maxW, maxH) {
+    const words = String(text).trim().split(/\s+/).filter(Boolean);
+    for (let size = 52; size > 10; size--) {
+      measure.font = '700 ' + size + 'px ' + FONT;
+      const width = (str) => measure.measureText(str).width - 0.02 * size * str.length;
+      if (words.some((word) => width(word) > maxW)) continue;
+      let lines = 1;
+      let line = '';
+      words.forEach((word) => {
+        const next = line ? line + ' ' + word : word;
+        if (line && width(next) > maxW) { lines++; line = word; } else { line = next; }
+      });
+      if (lines * size * 1.05 <= maxH) return size;
+    }
+    return 10;
+  }
+
+  // Sizes come from the grid, not the tiles, so a tile still rising in gets its final size.
+  function fitLabels() {
+    const w = grid.clientWidth;
+    const h = grid.clientHeight;
+    if (!w || !h) return;
+    const tileW = (w - 32) / 3;
+    grid.querySelectorAll('.tile').forEach((tile) => {
+      const name = tile.querySelector('.tile-name');
+      if (!name) return;
+      const tileH = tile.dataset.half ? (h - 16) / 2 : h;
+      name.style.fontSize = fitSize(name.textContent, tileW - 92, Math.max(24, tileH / 2 - 50)) + 'px';
+    });
+  }
+
+  function tileFor(tab, half) {
+    const editing = !ui.deleteMode && ui.editingId === tab.id;
+    const confirming = ui.deleteMode && ui.confirmId === tab.id;
+    const tile = el('div', {
+      class: 'tile' + (ui.addedId === tab.id ? ' rise' : ''),
+      style: 'background: ' + COLORS[tab.color],
+      'data-id': tab.id,
+      'data-half': half ? '1' : null
+    });
+    tile.append(el('span', { class: 'handle', 'aria-hidden': 'true' }));
+    if (!editing && !ui.deleteMode) {
+      tile.append(el('button', { type: 'button', class: 'tile-open', 'aria-label': 'Open ' + tab.name, onclick: () => openFridge(tab.id) },
+        el('span', { class: 'tap-hint', 'aria-hidden': 'true' }, 'Tap to open'),
+        el('span', { class: 'tile-name' }, tab.name)));
+    }
+    const actions = el('div', { class: 'tile-actions' });
+    if (!ui.deleteMode && !editing) actions.append(pill('Rename', '', () => startRename(tab.id)));
+    if (editing) actions.append(pill('Done', 'dark', commitRename));
+    if (ui.deleteMode && !confirming) actions.append(pill('Delete', 'danger', () => { ui.confirmId = tab.id; renderHome(); }));
+    if (confirming) {
+      actions.append(
+        pill('Confirm', 'danger-solid', () => deleteTab(tab.id)),
+        pill('Cancel', '', () => { ui.confirmId = null; renderHome(); }));
+    }
+    tile.append(actions);
+    if (ui.deleteMode) tile.append(el('div', { class: 'tile-label' }, el('span', { class: 'tile-name' }, tab.name)));
+    if (editing) {
+      tile.append(el('div', { class: 'tile-edit' }, el('input', {
+        type: 'text',
+        'aria-label': 'Tab label',
+        maxlength: LABEL_MAX,
+        value: tab.name,
+        autocomplete: 'off',
+        enterkeyhint: 'done',
+        oninput: (e) => {
+          const name = e.target.value.trim();
+          if (name) { tab.name = name.slice(0, LABEL_MAX); saveSoon(); }
+        },
+        onkeydown: (e) => { if (e.key === 'Enter') commitRename(); }
+      })));
+    }
+    return tile;
+  }
+
+  function renderHome() {
+    const count = data.tabs.length;
+    if (count <= MIN_TABS) ui.deleteMode = false;
+    // Tabs 4, 5 and 6 rise from the bottom of the right, middle and left columns.
+    const below = [5, 4, 3];
+    const cols = [0, 1, 2].map((c) => {
+      const half = below[c] < count;
+      const col = el('div', { class: 'col' }, tileFor(data.tabs[c], half));
+      if (half) col.append(tileFor(data.tabs[below[c]], true));
+      return col;
+    });
+    grid.replaceChildren.apply(grid, cols);
+    ui.addedId = null;
+    fitLabels();
+
+    tabsBtn.hidden = ui.deleteMode;
+    tabsBtn.setAttribute('aria-expanded', String(ui.menuOpen));
+    tabsMenu.hidden = !ui.menuOpen || ui.deleteMode;
+    $('addTabBtn').hidden = count >= MAX_TABS;
+    $('deleteTabBtn').hidden = count <= MIN_TABS;
+    $('doneDeletingBtn').hidden = !ui.deleteMode;
+    $('homeStatus').textContent = ui.deleteMode ? 'Choose a tab to delete' : '';
+    const undoBar = $('tabUndo');
+    undoBar.hidden = !ui.tabUndo;
+    if (ui.tabUndo) undoBar.querySelector('span').textContent = 'Deleted ' + ui.tabUndo.tab.name;
+  }
+
+  function focusRename() {
+    const input = grid.querySelector('.tile-edit input');
+    if (!input) return;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+
+  function startRename(id) {
+    commitRename(true);
+    const tab = tabById(id);
+    if (!tab) return;
+    ui.editingId = id;
+    ui.editingOriginal = tab.name;
+    ui.menuOpen = false;
+    renderHome();
+    focusRename();
+  }
+
+  // An empty label goes back to what it was before renaming started.
+  function commitRename(quiet) {
+    if (ui.editingId == null) return;
+    const tab = tabById(ui.editingId);
+    const input = grid.querySelector('.tile-edit input');
+    if (tab) {
+      const name = input ? input.value.trim().slice(0, LABEL_MAX) : tab.name;
+      tab.name = name || ui.editingOriginal;
+    }
+    ui.editingId = null;
+    if (input) input.blur();
+    save();
+    if (quiet !== true) renderHome();
+  }
+
+  function newTabName() {
+    const taken = new Set(data.tabs.map((t) => t.name));
+    let n = data.tabs.length + 1;
+    while (taken.has('Fridge ' + n)) n++;
+    return 'Fridge ' + n;
+  }
+
+  function addTab() {
+    if (data.tabs.length >= MAX_TABS) return;
+    commitRename(true);
+    dropTabUndo();
+    const used = data.tabs.map((t) => t.color);
+    const color = COLORS.findIndex((_, i) => used.indexOf(i) < 0);
+    const tab = { id: data.nextTabId++, name: newTabName(), color: color };
+    data.tabs.push(tab);
+    data.fridges[tab.id] = emptyFridge();
+    save();
+    ui.menuOpen = false;
+    ui.addedId = tab.id;
+    ui.editingId = tab.id;
+    ui.editingOriginal = tab.name;
+    renderHome();
+    focusRename();
+  }
+
+  function deleteTab(id) {
+    const index = data.tabs.findIndex((t) => t.id === id);
+    if (index < 0 || data.tabs.length <= MIN_TABS) return;
+    const tab = data.tabs[index];
+    const record = { tab: tab, index: index, fridge: data.fridges[id], timer: 0 };
+    data.tabs.splice(index, 1);
+    delete data.fridges[id];
+    if (data.active === id) data.active = null;
+    forgetFridge(id, record);
+    dropTabUndo();
+    record.timer = setTimeout(() => { ui.tabUndo = null; renderHome(); }, UNDO_MS);
+    ui.tabUndo = record;
+    ui.confirmId = null;
+    ui.deleteMode = data.tabs.length > MIN_TABS;
+    save();
+    renderHome();
+  }
+
+  function undoTabDelete() {
+    const u = ui.tabUndo;
+    if (!u) return;
+    dropTabUndo();
+    if (data.tabs.length >= MAX_TABS || data.tabs.some((t) => t.color === u.tab.color)) return;
+    data.tabs.splice(Math.min(u.index, data.tabs.length), 0, u.tab);
+    data.fridges[u.tab.id] = u.fridge;
+    rememberFridge(u.tab.id, u);
+    save();
+    renderHome();
+  }
+
+  function dropTabUndo() {
+    if (!ui.tabUndo) return;
+    clearTimeout(ui.tabUndo.timer);
+    ui.tabUndo = null;
+  }
+
+  tabsBtn.addEventListener('click', () => {
+    commitRename(true);
+    ui.menuOpen = !ui.menuOpen;
+    renderHome();
+  });
+  $('addTabBtn').addEventListener('click', addTab);
+  $('deleteTabBtn').addEventListener('click', () => {
+    commitRename(true);
+    ui.menuOpen = false;
+    ui.deleteMode = true;
+    ui.confirmId = null;
+    renderHome();
+  });
+  $('doneDeletingBtn').addEventListener('click', () => {
+    ui.deleteMode = false;
+    ui.confirmId = null;
+    renderHome();
+  });
+  $('tabUndo').querySelector('button').addEventListener('click', undoTabDelete);
+
+  // A tap anywhere outside the Tabs menu closes it.
+  document.addEventListener('pointerdown', (e) => {
+    if (!ui.menuOpen || tabsMenu.contains(e.target) || tabsBtn.contains(e.target)) return;
+    ui.menuOpen = false;
+    renderHome();
+  }, true);
+
+  /* ---------- Fridge screen ---------- */
+  const homeScreen = $('home');
+  const fridgeScreen = $('fridge');
+
+  // Per-fridge memory that is not saved: kept with a deleted tab so Undo can bring it back.
+  function forgetFridge(id, record) { /* filled in by the ink pad and list */ }
+  function rememberFridge(id, record) { /* filled in by the ink pad and list */ }
+
+  function openFridge(id) {
+    if (!tabById(id)) return;
+    commitRename(true);
+    ui.menuOpen = false;
+    data.active = id;
+    save();
+    showScreen();
+  }
+
+  function goHome() {
+    data.active = null;
+    save();
+    showScreen();
+  }
+
+  function renderFridge() {
+    const tab = activeTab();
+    $('fridgeName').textContent = tab.name;
+  }
+
+  function showScreen() {
+    const tab = activeTab();
+    homeScreen.hidden = !!tab;
+    fridgeScreen.hidden = !tab;
+    const bg = tab ? COLORS[tab.color] : '';
+    $('app').style.background = bg;
+    document.body.style.background = bg;
+    if (tab) renderFridge();
+    else renderHome();
+  }
+
+  $('homeBtn').addEventListener('click', goHome);
+
+  /* ---------- Start ---------- */
+  if (loaded.resave) save();
+  showScreen();
+  renderBanner();
+  if (window.ResizeObserver) new ResizeObserver(fitLabels).observe(grid);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitLabels);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
+  window.addEventListener('pagehide', flushSave);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fridge board prototype, landscape</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button,input{font-family:inherit}
+button{cursor:pointer}
+input::placeholder{color:#5a6675}
+@keyframes rise{from{flex-grow:0.001;opacity:0}to{flex-grow:1;opacity:1}}
+.rise{animation:rise 320ms ease-out}
+@keyframes slide{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
+.slide{animation:slide 220ms ease-out}
+</style>
+</helmet>
+<div style="width: 1024px; height: 768px; overflow: hidden; background: {{rootBg}}; color: #1f2a37; font-family: -apple-system, 'SF Pro Display', system-ui, 'Helvetica Neue', sans-serif">
+<sc-if value="{{isHome}}" hint-placeholder-val="{{true}}">
+<div style="width: 1024px; height: 768px; box-sizing: border-box; padding: 24px 24px 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+<sc-for list="{{columns}}" as="col" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 16px; min-height: 0">
+<sc-for list="{{col.tiles}}" as="t" hint-placeholder-count="1">
+<div class="{{t.cls}}" style="position: relative; flex: 1 1 0; min-height: 0; overflow: hidden; box-sizing: border-box; padding: 24px 28px 28px; border-radius: 28px; background: {{t.bg}}; display: flex; flex-direction: column; gap: 12px">
+<span aria-hidden="true" style="position: absolute; right: 26px; top: 31%; width: 12px; height: 38%; border-radius: 6px; background: rgba(31, 42, 55, 0.16)"></span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 48px">
+<sc-if value="{{t.showRename}}" hint-placeholder-val="{{true}}">
+<button type="button" onClick="{{t.rename}}" style="height: 48px; padding: 0 20px; border: 0; border-radius: 24px; background: rgba(255, 255, 255, 0.7); color: #1f2a37; font-size: 20px; font-weight: 600">Rename</button>
+</sc-if>
+<sc-if value="{{t.editing}}" hint-placeholder-val="{{false}}">
+<button type="button" onClick="{{t.done}}" style="height: 48px; padding: 0 20px; border: 0; border-radius: 24px; background: #1f2a37; color: #ffffff; font-size: 20px; font-weight: 600">Done</button>
+</sc-if>
+<sc-if value="{{t.showDelete}}" hint-placeholder-val="{{false}}">
+<button type="button" onClick="{{t.askDelete}}" style="height: 48px; padding: 0 20px; border: 2px solid #8f1d1d; border-radius: 24px; background: #ffffff; color: #8f1d1d; font-size: 20px; font-weight: 600">Delete</button>
+</sc-if>
+<sc-if value="{{t.showConfirm}}" hint-placeholder-val="{{false}}">
+<button type="button" onClick="{{t.confirmDelete}}" style="height: 48px; padding: 0 18px; border: 0; border-radius: 24px; background: #8f1d1d; color: #ffffff; font-size: 20px; font-weight: 600">Confirm</button>
+<button type="button" onClick="{{t.cancelDelete}}" style="height: 48px; padding: 0 18px; border: 0; border-radius: 24px; background: rgba(255, 255, 255, 0.7); color: #1f2a37; font-size: 20px; font-weight: 600">Cancel</button>
+</sc-if>
+</div>
+<sc-if value="{{t.canOpen}}" hint-placeholder-val="{{true}}">
+<span style="position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; pointer-events: none; font-size: 22px; font-weight: 600; letter-spacing: 0.02em; color: #3a4756">Tap to open</span>
+<button type="button" onClick="{{t.open}}" style="flex: 1 1 0; min-height: 0; display: flex; align-items: flex-end; padding: 0 30px 0 0; border: 0; background: transparent; color: #1f2a37; text-align: left; font-size: {{t.size}}px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; overflow-wrap: normal; word-break: normal; hyphens: none">{{t.name}}</button>
+</sc-if>
+<sc-if value="{{t.nameOnly}}" hint-placeholder-val="{{false}}">
+<div style="flex: 1 1 0; min-height: 0; display: flex; align-items: flex-end; padding: 0 30px 0 0; color: #1f2a37; font-size: {{t.size}}px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; overflow-wrap: normal; word-break: normal; hyphens: none">{{t.name}}</div>
+</sc-if>
+<sc-if value="{{t.editing}}" hint-placeholder-val="{{false}}">
+<div style="flex: 1 1 0; min-height: 0; display: flex; align-items: flex-end; padding-right: 30px">
+<input type="text" aria-label="Tab label" maxlength="24" value="{{t.name}}" onChange="{{t.change}}" onKeyDown="{{t.key}}" style="width: 100%; box-sizing: border-box; height: 76px; padding: 0 16px; border: 3px solid #1f2a37; border-radius: 16px; background: #ffffff; color: #1f2a37; font-size: 36px; font-weight: 700">
+</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</div>
+<div style="position: relative; height: 48px; display: flex; align-items: center; gap: 16px">
+<sc-if value="{{showMenuButton}}" hint-placeholder-val="{{true}}">
+<button type="button" aria-expanded="{{menuOpen}}" onClick="{{toggleMenu}}" style="height: 48px; padding: 0 18px 0 22px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 24px; background: #1f2a37; color: #ffffff; font-size: 20px; font-weight: 600">
+Tabs
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l5-5 5 5"></path></svg>
+</button>
+</sc-if>
+<sc-if value="{{deleteMode}}" hint-placeholder-val="{{false}}">
+<button type="button" onClick="{{endDelete}}" style="height: 48px; padding: 0 22px; border: 0; border-radius: 24px; background: #1f2a37; color: #ffffff; font-size: 20px; font-weight: 600">Done deleting</button>
+</sc-if>
+<span style="font-size: 18px; font-weight: 500; color: #4b5866">{{statusLabel}}</span>
+<sc-if value="{{menuOpen}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; left: 0; bottom: 58px; width: 260px; box-sizing: border-box; padding: 8px; display: flex; flex-direction: column; gap: 4px; border-radius: 20px; background: #ffffff; box-shadow: 0 8px 28px rgba(31, 42, 55, 0.22)">
+<sc-if value="{{canAdd}}" hint-placeholder-val="{{true}}">
+<button type="button" onClick="{{add}}" style="height: 56px; padding: 0 16px; display: flex; align-items: center; gap: 12px; border: 0; border-radius: 14px; background: transparent; color: #1f2a37; font-size: 20px; font-weight: 600; text-align: left">
+<svg aria-hidden="true" width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M11 4v14M4 11h14"></path></svg>
+Add tab
+</button>
+</sc-if>
+<sc-if value="{{canDelete}}" hint-placeholder-val="{{true}}">
+<button type="button" onClick="{{startDelete}}" style="height: 56px; padding: 0 16px; display: flex; align-items: center; gap: 12px; border: 0; border-radius: 14px; background: transparent; color: #8f1d1d; font-size: 20px; font-weight: 600; text-align: left">
+<svg aria-hidden="true" width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 11h14"></path></svg>
+Delete a tab
+</button>
+</sc-if>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{isFridge}}" hint-placeholder-val="{{false}}">
+<div style="width: 1024px; height: 768px; box-sizing: border-box; padding: 16px 24px; display: flex; flex-direction: column; gap: 12px">
+<div style="height: 56px; display: flex; align-items: center; gap: 12px">
+<button type="button" onClick="{{goHome}}" style="height: 56px; padding: 0 22px 0 14px; display: flex; align-items: center; gap: 8px; border: 0; border-radius: 28px; background: #1f2a37; color: #ffffff; font-size: 20px; font-weight: 600">
+<svg aria-hidden="true" width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 4.5L7 11l6.5 6.5"></path></svg>
+Home
+</button>
+<h1 style="flex: 1 1 0; min-width: 0; margin: 0 0 0 8px; font-size: 32px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{curName}}</h1>
+<button type="button" onClick="{{undo}}" style="height: 56px; padding: 0 22px; border: 0; border-radius: 28px; background: rgba(255, 255, 255, 0.75); color: #1f2a37; font-size: 20px; font-weight: 600">Undo</button>
+<button type="button" aria-pressed="{{erasing}}" onClick="{{toggleErase}}" style="height: 56px; padding: 0 22px; border: 0; border-radius: 28px; background: {{eraseBg}}; color: {{eraseFg}}; font-size: 20px; font-weight: 600">{{eraseLabel}}</button>
+<button type="button" onClick="{{clear}}" style="height: 56px; padding: 0 22px; border: 0; border-radius: 28px; background: rgba(255, 255, 255, 0.75); color: #1f2a37; font-size: 20px; font-weight: 600">Clear</button>
+<span aria-hidden="true" style="width: 2px; height: 32px; margin: 0 4px; border-radius: 1px; background: rgba(31, 42, 55, 0.25)"></span>
+<button type="button" aria-expanded="{{listOpen}}" onClick="{{toggleList}}" style="height: 56px; min-width: 150px; padding: 0 22px; display: flex; align-items: center; justify-content: center; gap: 10px; border: 0; border-radius: 28px; background: #1f2a37; color: #ffffff; font-size: 20px; font-weight: 600">
+<svg aria-hidden="true" width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 6h14M4 11h14M4 16h14"></path></svg>
+{{listLabel}}
+</button>
+</div>
+<div style="position: relative; flex: 1 1 0; min-height: 0; border-radius: 20px; background: #ffffff; overflow: hidden">
+<sc-if value="{{showHint}}" hint-placeholder-val="{{true}}">
+<span style="position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; pointer-events: none; font-size: 24px; font-weight: 500; color: #5a6675">Write notes here with the Pencil</span>
+</sc-if>
+<canvas ref="{{padRef}}" role="img" aria-label="Handwritten notes for this fridge" width="1952" height="1184" onPointerDown="{{down}}" onPointerMove="{{move}}" onPointerUp="{{up}}" onPointerCancel="{{up}}" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; touch-action: none; cursor: {{padCursor}}"></canvas>
+<sc-if value="{{listOpen}}" hint-placeholder-val="{{false}}">
+<div class="slide" style="position: absolute; top: 0; right: 0; bottom: 0; width: 500px; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; border-left: 2px solid #1f2a37; box-shadow: -10px 0 30px rgba(31, 42, 55, 0.18)">
+<div style="padding: 16px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #e3e7ea">
+<h2 style="flex: 1 1 0; min-width: 0; margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em">{{panelTitle}}</h2>
+<button type="button" onClick="{{toggleRemoved}}" style="height: 48px; padding: 0 18px; border: 2px solid #1f2a37; border-radius: 24px; background: #ffffff; color: #1f2a37; font-size: 18px; font-weight: 600">{{removedLabel}}</button>
+</div>
+<div style="flex: 1 1 0; min-height: 0; overflow-y: auto">
+<sc-if value="{{showItems}}" hint-placeholder-val="{{true}}">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
+<div style="min-height: 72px; box-sizing: border-box; padding: 10px 14px 10px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #e3e7ea">
+<sc-if value="{{r.viewing}}" hint-placeholder-val="{{true}}">
+<button type="button" onClick="{{r.edit}}" style="flex: 1 1 0; min-width: 0; min-height: 52px; padding: 0; border: 0; background: transparent; color: #1f2a37; text-align: left; font-size: 22px; font-weight: 600; line-height: 1.2">{{r.text}}</button>
+<span style="font-size: 17px; font-weight: 500; color: #4b5866; white-space: nowrap">{{r.age}}</span>
+<button type="button" onClick="{{r.remove}}" style="height: 48px; padding: 0 16px; border: 2px solid #8f1d1d; border-radius: 24px; background: #ffffff; color: #8f1d1d; font-size: 18px; font-weight: 600">Remove</button>
+</sc-if>
+<sc-if value="{{r.editing}}" hint-placeholder-val="{{false}}">
+<input type="text" aria-label="Item text" value="{{r.text}}" onChange="{{r.change}}" onKeyDown="{{r.key}}" style="flex: 1 1 0; min-width: 0; height: 52px; box-sizing: border-box; padding: 0 14px; border: 2px solid #1f2a37; border-radius: 12px; background: #ffffff; color: #1f2a37; font-size: 22px; font-weight: 600">
+<button type="button" onClick="{{r.done}}" style="height: 48px; padding: 0 18px; border: 0; border-radius: 24px; background: #1f2a37; color: #ffffff; font-size: 18px; font-weight: 600">Done</button>
+</sc-if>
+</div>
+</sc-for>
+<sc-if value="{{noItems}}" hint-placeholder-val="{{false}}">
+<p style="margin: 0; padding: 28px 20px; font-size: 20px; font-weight: 500; line-height: 1.4; color: #4b5866">Nothing listed yet. Use Add to list at the bottom of the screen.</p>
+</sc-if>
+</sc-if>
+<sc-if value="{{showRemoved}}" hint-placeholder-val="{{false}}">
+<sc-for list="{{removedRows}}" as="r" hint-placeholder-count="1">
+<div style="min-height: 72px; box-sizing: border-box; padding: 10px 14px 10px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #e3e7ea">
+<span style="flex: 1 1 0; min-width: 0; font-size: 22px; font-weight: 600; line-height: 1.2; color: #4b5866">{{r.text}}</span>
+<button type="button" onClick="{{r.restore}}" style="height: 48px; padding: 0 16px; border: 0; border-radius: 24px; background: #1f2a37; color: #ffffff; font-size: 18px; font-weight: 600">Restore</button>
+</div>
+</sc-for>
+<sc-if value="{{noRemoved}}" hint-placeholder-val="{{false}}">
+<p style="margin: 0; padding: 28px 20px; font-size: 20px; font-weight: 500; line-height: 1.4; color: #4b5866">Nothing has been removed from this list.</p>
+</sc-if>
+</sc-if>
+</div>
+<sc-if value="{{undoVisible}}" hint-placeholder-val="{{false}}">
+<div role="status" style="margin: 12px; padding: 10px 10px 10px 20px; display: flex; align-items: center; gap: 12px; border-radius: 18px; background: #1f2a37; color: #ffffff">
+<span style="flex: 1 1 0; min-width: 0; font-size: 19px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{undoText}}</span>
+<button type="button" onClick="{{undoRemove}}" style="height: 48px; padding: 0 22px; border: 0; border-radius: 24px; background: #ffffff; color: #1f2a37; font-size: 19px; font-weight: 700">Undo</button>
+</div>
+</sc-if>
+</div>
+</sc-if>
+</div>
+<div style="height: 64px; display: flex; align-items: center; gap: 12px">
+<label for="add-item" style="font-size: 20px; font-weight: 600; white-space: nowrap">Add to list</label>
+<input id="add-item" type="text" value="{{draft}}" onChange="{{typeDraft}}" onKeyDown="{{keyDraft}}" placeholder="Write an item with the Pencil, or tap to type" style="flex: 1 1 0; min-width: 0; height: 64px; box-sizing: border-box; padding: 0 20px; border: 2px solid #1f2a37; border-radius: 16px; background: #ffffff; color: #1f2a37; font-size: 24px; font-weight: 500">
+<button type="button" onClick="{{addItem}}" style="height: 64px; padding: 0 30px; border: 0; border-radius: 16px; background: #1f2a37; color: #ffffff; font-size: 22px; font-weight: 600">Add</button>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tabs":{"editor":"range","default":3,"min":3,"max":6,"step":1},"sampleItems":{"editor":"boolean","default":true},"$preview":{"width":1024,"height":768}}'>
+class Component extends DCLogic {
+renderVals() {
+const s = this.state || {};
+const DAY = 86400000;
+const colors = ['#bfd6f2', '#bfe6d2', '#f8d2ba', '#d9cdf2', '#f4e4a6', '#f4c8d6'];
+const start = Math.min(6, Math.max(3, Number(this.props.tabs ?? 3)));
+const tabs = s.tabs || Array.from({ length: start }, (_, i) => ({ id: i + 1, name: 'Fridge ' + (i + 1), color: i }));
+const nextId = s.nextId ?? start + 1;
+const count = tabs.length;
+const deleteMode = !!s.deleteMode && count > 3;
+const cur = tabs.find((t) => t.id === s.open) || null;
+
+/* ---------- home page ---------- */
+const patch = (id, name) => tabs.map((t) => (t.id === id ? { id: t.id, name: name, color: t.color } : t));
+const ctx = this._ctx || (this._ctx = document.createElement('canvas').getContext('2d'));
+const fit = (text, half) => {
+const maxW = 222;
+const maxH = half ? 112 : 280;
+const words = String(text).trim().split(/\s+/).filter(Boolean);
+for (let size = 52; size > 10; size--) {
+ctx.font = '700 ' + size + 'px -apple-system, system-ui, "Helvetica Neue", sans-serif';
+const w = (str) => ctx.measureText(str).width - 0.02 * size * str.length;
+if (words.some((word) => w(word) > maxW)) continue;
+let lines = 1;
+let line = '';
+words.forEach((word) => {
+const next = line ? line + ' ' + word : word;
+if (line && w(next) > maxW) { lines++; line = word; } else { line = next; }
+});
+if (lines * size * 1.05 <= maxH) return size;
+}
+return 10;
+};
+const tile = (tab, half) => {
+const editing = !deleteMode && s.editing === tab.id;
+const confirming = deleteMode && s.confirm === tab.id;
+return {
+name: tab.name,
+size: fit(tab.name, half),
+bg: colors[tab.color],
+cls: s.added === tab.id ? 'rise' : '',
+editing: editing,
+canOpen: !editing && !deleteMode,
+nameOnly: !editing && deleteMode,
+showRename: !deleteMode && !editing,
+showDelete: deleteMode && !confirming,
+showConfirm: confirming,
+open: () => this.setState({ tabs: tabs, nextId: nextId, open: tab.id, menuOpen: false, editing: null, added: null, erasing: false, listOpen: false, showRemoved: false, rowEditing: null, draft: '' }),
+rename: () => this.setState({ tabs: tabs, editing: tab.id, menuOpen: false }),
+done: () => this.setState({ editing: null }),
+key: (e) => { if (e.key === 'Enter') this.setState({ editing: null }); },
+change: (e) => this.setState({ tabs: patch(tab.id, e.target.value) }),
+askDelete: () => this.setState({ confirm: tab.id }),
+cancelDelete: () => this.setState({ confirm: null }),
+confirmDelete: () => {
+const left = tabs.filter((t) => t.id !== tab.id);
+this.setState({ tabs: left, nextId: nextId, confirm: null, added: null, deleteMode: left.length > 3 });
+}
+};
+};
+const below = [5, 4, 3];
+const columns = [0, 1, 2].map((c) => {
+const half = below[c] < count;
+const tiles = [tile(tabs[c], half)];
+if (half) tiles.push(tile(tabs[below[c]], true));
+return { tiles: tiles };
+});
+const menuOpen = !!s.menuOpen && !deleteMode;
+
+/* ---------- ink pad, one per tab ---------- */
+if (!this.ink) this.ink = { pads: {}, cur: null, rubbing: false, canvas: null };
+const ink = this.ink;
+const padId = cur ? cur.id : 0;
+const pad = ink.pads[padId] || (ink.pads[padId] = { strokes: [], history: [] });
+const erasing = !!s.erasing;
+const redraw = () => {
+const c = ink.canvas;
+if (!c) return;
+const g = c.getContext('2d');
+g.clearRect(0, 0, c.width, c.height);
+g.lineCap = 'round';
+g.lineJoin = 'round';
+g.strokeStyle = '#1f2a37';
+g.lineWidth = 6;
+pad.strokes.forEach((st) => {
+g.beginPath();
+g.moveTo(st[0][0], st[0][1]);
+if (st.length === 1) g.lineTo(st[0][0] + 0.1, st[0][1]);
+for (let i = 1; i < st.length; i++) g.lineTo(st[i][0], st[i][1]);
+g.stroke();
+});
+};
+this._redraw = redraw;
+if (!this._padRef) this._padRef = (el) => { this.ink.canvas = el; if (el && this._redraw) this._redraw(); };
+const pt = (e) => {
+const c = e.currentTarget;
+const r = c.getBoundingClientRect();
+return [(e.clientX - r.left) * c.width / r.width, (e.clientY - r.top) * c.height / r.height];
+};
+const remember = () => {
+pad.history.push(pad.strokes.slice());
+if (pad.history.length > 50) pad.history.shift();
+};
+const tick = () => this.setState({ tick: (s.tick || 0) + 1 });
+const eraseAt = (p) => {
+const hit = pad.strokes.filter((st) => st.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 28));
+if (!hit.length) return;
+remember();
+pad.strokes = pad.strokes.filter((st) => hit.indexOf(st) < 0);
+redraw();
+tick();
+};
+
+/* ---------- list, one per tab ---------- */
+if (!this._seed) {
+const now = Date.now();
+this._seed = (this.props.sampleItems ?? true) ? [
+{ id: -1, text: 'Milk (sample)', added: now },
+{ id: -2, text: 'Leftover chili (sample)', added: now - 2 * DAY },
+{ id: -3, text: 'Pickles (sample)', added: now - 9 * DAY }
+] : [];
+}
+const lists = s.lists || { 1: { items: this._seed, removed: [] } };
+const list = lists[padId] || { items: [], removed: [] };
+const nextItem = s.nextItem ?? 1;
+const draft = s.draft || '';
+const saveList = (next, extra) => {
+const all = Object.assign({}, lists);
+all[padId] = next;
+this.setState(Object.assign({ lists: all }, extra || {}));
+};
+const byNewest = (a, b) => (b.added - a.added) || (b.id - a.id);
+const ageOf = (added) => {
+const d = Math.floor((Date.now() - added) / DAY);
+return d <= 0 ? 'Today' : (d === 1 ? '1 day' : d + ' days');
+};
+const putBack = (item) => {
+if (this._undoTimer) clearTimeout(this._undoTimer);
+saveList({ items: list.items.concat([item]).sort(byNewest), removed: list.removed.filter((x) => x.id !== item.id) }, { undo: null });
+};
+const rows = list.items.map((item) => ({
+text: item.text,
+age: ageOf(item.added),
+viewing: s.rowEditing !== item.id,
+editing: s.rowEditing === item.id,
+edit: () => this.setState({ rowEditing: item.id }),
+done: () => this.setState({ rowEditing: null }),
+key: (e) => { if (e.key === 'Enter') this.setState({ rowEditing: null }); },
+change: (e) => saveList({ items: list.items.map((x) => (x.id === item.id ? { id: x.id, text: e.target.value, added: x.added } : x)), removed: list.removed }),
+remove: () => {
+if (this._undoTimer) clearTimeout(this._undoTimer);
+this._undoTimer = setTimeout(() => this.setState({ undo: null }), 10000);
+saveList({ items: list.items.filter((x) => x.id !== item.id), removed: [item].concat(list.removed).slice(0, 20) }, { undo: { tab: padId, item: item }, rowEditing: null });
+}
+}));
+const removedRows = list.removed.map((item) => ({ text: item.text, restore: () => putBack(item) }));
+const undo = s.undo && s.undo.tab === padId ? s.undo : null;
+const showRemoved = !!s.showRemoved;
+const addItem = () => {
+const text = draft.trim();
+if (!text) return;
+saveList({ items: [{ id: nextItem, text: text, added: Date.now() }].concat(list.items), removed: list.removed }, { nextItem: nextItem + 1, draft: '' });
+};
+
+return {
+rootBg: cur ? colors[cur.color] : '#eef1f3',
+isHome: !cur,
+isFridge: !!cur,
+columns: columns,
+deleteMode: deleteMode,
+showMenuButton: !deleteMode,
+menuOpen: menuOpen,
+canAdd: count < 6,
+canDelete: count > 3,
+statusLabel: deleteMode ? 'Choose a tab to delete' : '',
+toggleMenu: () => this.setState({ menuOpen: !menuOpen }),
+startDelete: () => this.setState({ tabs: tabs, nextId: nextId, deleteMode: true, menuOpen: false, editing: null, confirm: null }),
+endDelete: () => this.setState({ deleteMode: false, confirm: null }),
+add: () => {
+const used = tabs.map((t) => t.color);
+const color = [0, 1, 2, 3, 4, 5].find((c) => used.indexOf(c) < 0);
+this.setState({ tabs: tabs.concat([{ id: nextId, name: 'Fridge ' + nextId, color: color }]), nextId: nextId + 1, added: nextId, editing: nextId, menuOpen: false });
+},
+
+curName: cur ? cur.name : '',
+goHome: () => { ink.cur = null; ink.rubbing = false; this.setState({ open: null, erasing: false, listOpen: false, rowEditing: null }); },
+padRef: this._padRef,
+erasing: erasing,
+eraseLabel: erasing ? 'Erasing' : 'Erase',
+eraseBg: erasing ? '#1f2a37' : 'rgba(255, 255, 255, 0.75)',
+eraseFg: erasing ? '#ffffff' : '#1f2a37',
+padCursor: erasing ? 'cell' : 'crosshair',
+showHint: pad.strokes.length === 0,
+toggleErase: () => this.setState({ erasing: !erasing }),
+undo: () => {
+if (!pad.history.length) return;
+pad.strokes = pad.history.pop();
+redraw();
+tick();
+},
+clear: () => {
+if (!pad.strokes.length) return;
+remember();
+pad.strokes = [];
+redraw();
+tick();
+},
+down: (e) => {
+if (e.pointerType === 'touch') return;
+if (ink.canvas !== e.currentTarget) { ink.canvas = e.currentTarget; redraw(); }
+try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+const p = pt(e);
+if (erasing) { ink.rubbing = true; eraseAt(p); return; }
+remember();
+ink.cur = [p];
+pad.strokes.push(ink.cur);
+redraw();
+tick();
+},
+move: (e) => {
+if (e.pointerType === 'touch') return;
+if (ink.rubbing) { eraseAt(pt(e)); return; }
+if (!ink.cur) return;
+ink.cur.push(pt(e));
+redraw();
+},
+up: () => { ink.cur = null; ink.rubbing = false; },
+
+listOpen: !!s.listOpen,
+listLabel: s.listOpen ? 'Close list' : 'List (' + list.items.length + ')',
+toggleList: () => this.setState({ listOpen: !s.listOpen, showRemoved: false, rowEditing: null }),
+panelTitle: showRemoved ? 'Recently removed' : 'List (' + list.items.length + ')',
+removedLabel: showRemoved ? 'Back to list' : 'Recently removed (' + list.removed.length + ')',
+toggleRemoved: () => this.setState({ showRemoved: !showRemoved, rowEditing: null }),
+showItems: !showRemoved,
+showRemoved: showRemoved,
+rows: rows,
+removedRows: removedRows,
+noItems: rows.length === 0,
+noRemoved: removedRows.length === 0,
+undoVisible: !!undo,
+undoText: undo ? 'Removed: ' + undo.item.text : '',
+undoRemove: () => { if (undo) putBack(undo.item); },
+draft: draft,
+typeDraft: (e) => this.setState({ draft: e.target.value }),
+keyDraft: (e) => { if (e.key === 'Enter') addItem(); },
+addItem: addItem
+};
+}
+}
+</script>
+</body>
+</html>

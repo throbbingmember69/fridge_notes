@@ -556,6 +556,10 @@ input::placeholder { color: var(--hint); }
     $('deleteTabBtn').hidden = count <= MIN_TABS;
     $('doneDeletingBtn').hidden = !ui.deleteMode;
     $('homeStatus').textContent = ui.deleteMode ? 'Choose a tab to delete' : '';
+    renderTabUndo();
+  }
+
+  function renderTabUndo() {
     const undoBar = $('tabUndo');
     undoBar.hidden = !ui.tabUndo;
     if (ui.tabUndo) undoBar.querySelector('span').textContent = 'Deleted ' + ui.tabUndo.tab.name;
@@ -629,7 +633,7 @@ input::placeholder { color: var(--hint); }
     if (data.active === id) data.active = null;
     forgetFridge(id, record);
     dropTabUndo();
-    record.timer = setTimeout(() => { ui.tabUndo = null; renderHome(); }, UNDO_MS);
+    record.timer = setTimeout(() => { ui.tabUndo = null; renderTabUndo(); }, UNDO_MS);
     ui.tabUndo = record;
     ui.confirmId = null;
     ui.deleteMode = data.tabs.length > MIN_TABS;
@@ -688,15 +692,15 @@ input::placeholder { color: var(--hint); }
 
   // Per-fridge memory that is not saved: kept with a deleted tab so Undo can bring it back.
   function forgetFridge(id, record) {
-    record.history = history[id];
+    record.history = inkHistory[id];
     record.draft = drafts[id];
-    delete history[id];
+    delete inkHistory[id];
     delete drafts[id];
     if (ui.itemUndo && ui.itemUndo.fridge === id) dropItemUndo();
   }
 
   function rememberFridge(id, record) {
-    if (record.history) history[id] = record.history;
+    if (record.history) inkHistory[id] = record.history;
     if (record.draft) drafts[id] = record.draft;
   }
 
@@ -715,6 +719,7 @@ input::placeholder { color: var(--hint); }
 
   function goHome() {
     commitRow(true);
+    if (data.active != null) drafts[data.active] = addInput.value;
     data.active = null;
     erasing = false;
     pen = null;
@@ -740,7 +745,7 @@ input::placeholder { color: var(--hint); }
   const LINE = 3; // page units
   const ERASE_RADIUS = 14; // page units
   const HISTORY_MAX = 50;
-  const history = {}; // fridge id -> earlier stroke lists for Undo, newest last (not saved)
+  const inkHistory = {}; // fridge id -> earlier stroke lists for Undo, newest last (not saved)
   let erasing = false;
   let pen = null; // the Pencil stroke or erase gesture in progress
 
@@ -828,7 +833,7 @@ input::placeholder { color: var(--hint); }
 
   function renderInkButtons() {
     if (data.active == null) return;
-    const h = history[data.active];
+    const h = inkHistory[data.active];
     $('undoBtn').setAttribute('aria-disabled', String(!(h && h.length)));
     $('clearBtn').setAttribute('aria-disabled', String(!data.fridges[data.active].strokes.length));
     const eraseBtn = $('eraseBtn');
@@ -839,7 +844,7 @@ input::placeholder { color: var(--hint); }
   }
 
   function remember(id, strokes) {
-    const h = history[id] || (history[id] = []);
+    const h = inkHistory[id] || (inkHistory[id] = []);
     h.push(strokes);
     if (h.length > HISTORY_MAX) h.shift();
   }
@@ -950,7 +955,7 @@ input::placeholder { color: var(--hint); }
   canvas.addEventListener('touchmove', stylusGuard, { passive: false });
 
   $('undoBtn').addEventListener('click', () => {
-    const h = history[data.active];
+    const h = inkHistory[data.active];
     if (!h || !h.length) return;
     data.fridges[data.active].strokes = h.pop();
     save();
@@ -1036,6 +1041,10 @@ input::placeholder { color: var(--hint); }
       if (!rows.length) rows = [el('p', { class: 'empty' }, 'Nothing listed yet. Use Add to list at the bottom of the screen.')];
     }
     panelBody.replaceChildren.apply(panelBody, rows);
+    renderItemUndo();
+  }
+
+  function renderItemUndo() {
     const undo = ui.itemUndo && ui.itemUndo.fridge === data.active ? ui.itemUndo : null;
     const undoBar = $('itemUndo');
     undoBar.hidden = !undo;
@@ -1093,7 +1102,7 @@ input::placeholder { color: var(--hint); }
     f.removed = f.removed.slice(0, REMOVED_MAX);
     dropItemUndo();
     const fridge = data.active;
-    ui.itemUndo = { fridge: fridge, item: item, timer: setTimeout(() => { ui.itemUndo = null; renderList(); }, UNDO_MS) };
+    ui.itemUndo = { fridge: fridge, item: item, timer: setTimeout(() => { ui.itemUndo = null; renderItemUndo(); }, UNDO_MS) };
     save();
     renderList();
   }

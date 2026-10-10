@@ -14,7 +14,7 @@ One full-screen web page turns a 2016 9.7-inch iPad Pro into an always-on board 
 | Handwritten notes | A very large ink pad per fridge; ink stays as handwriting |
 | Items | Free text only, kept in a separate list menu per fridge |
 | Typed text | Written with the Pencil and converted by iPadOS Scribble, or typed on the on-screen keyboard. No voice dictation |
-| Layout | Open: to be laid out in Claude Design before the build |
+| Layout | Landscape laid out in Claude Design (`design/Main.dc.html`) and built. Portrait still to be designed |
 | Data | Saved on the iPad only: no server, sync or backup |
 | Hosting | GitHub Pages delivers the files once; after that the app runs from the iPad's own offline cache |
 | Always on | Auto-Lock off, permanently on a charger |
@@ -35,9 +35,9 @@ The 9.7-inch iPad Pro (2016) stops at iPadOS 16.7, so the page must run on Safar
 
 The app has three kinds of screen: a home page with three to six fridge tabs, a very large ink pad for each fridge, and a separate menu holding that fridge's list.
 
-### Layout (open)
+### Layout
 
-The layout will be worked out in Claude Design first, so this doc fixes only the structure. Sizes, positions and styling stay open until that design is agreed.
+The landscape layout, sizes and styling come from the Claude Design prototype (`design/Main.dc.html`). Portrait is still open.
 
 Fixed:
 
@@ -47,13 +47,16 @@ Fixed:
 - Every screen works in portrait and landscape.
 - Turning the iPad keeps the same screen, half-typed text and ink.
 
-Open for the design:
+Decided in the design and build:
 
-- Size and position of the tabs, the ink pad and the Add field.
-- How the list menu opens, and how each screen leads back to the home page.
-- Where the ink tools (Erase, Undo, Clear) sit.
-- How each screen rearranges between portrait and landscape, and how ink stays whole when the pad changes shape.
-- What the display shows when left idle: the last screen or the home page.
+- The fridge screen has a toolbar along the top (Home, the fridge name, Undo, Erase, Clear and List), the ink pad below it and the Add field along the bottom.
+- The list menu is a panel that slides over the right side of the ink pad from the List button. Close list or Home closes it.
+- The ink pad is a fixed page of 976 × 592 pt, the landscape pad. It is scaled to fit the space and centred, so ink keeps its shape and is never cropped. Strokes are saved with the page size, so a later layout can rescale them.
+- When left idle for 5 minutes, the display returns to the home page.
+
+Still open:
+
+- Portrait (768 × 1024 pt) versions of every screen, including where the list goes. Until they exist, the iPad is kept in landscape (see iPad setup step 7).
 
 ### Home page
 
@@ -66,7 +69,7 @@ Open for the design:
 - Labels wrap between whole words only. The text shrinks only when a label cannot fit that way.
 - Each tab shows a centred "Tap to open" label.
 - Colours: six pastels, one per tab, with dark text on a pale grey ground.
-- Open: deleting a tab also removes its ink and list. Decide whether Confirm is enough or an Undo is needed too.
+- Deleting a tab also removes its ink and list. After Confirm, an Undo bar shows for 10 seconds and puts the tab back in place with its colour, ink and list.
 
 ### Ink pad
 
@@ -79,7 +82,7 @@ Open for the design:
 ### Add field
 
 - Writing in it with the Pencil becomes text; a finger tap opens the keyboard.
-- Assumed: it adds a free-text item to that fridge's list. Confirm this in the design.
+- It adds a free-text item to the top of that fridge's list, with Enter or the Add button.
 
 ### List menu
 
@@ -102,6 +105,7 @@ Open for the design:
 - Zoom, long-press menus, text-selection popups and pull-to-refresh are switched off.
 - Controls are large and carry text labels. Exact sizes are set in the design.
 - After 60 seconds idle, the keyboard closes and any half-typed text stays in the Add field.
+- After 5 minutes idle, the display returns to the home page, closing the list and any menu. Half-typed text is kept until the app closes.
 - If saved data cannot be read, the app starts with empty lists instead of a blank page, and keeps the unreadable copy.
 - If saving fails, the app says so in plain words and keeps what was already saved.
 
@@ -124,9 +128,9 @@ Plain HTML, CSS and JavaScript with no framework and no build step keeps the app
 
 | Part | Choice |
 | --- | --- |
-| Files | `index.html` (markup, styles, script), `sw.js` (offline cache), a web app manifest and an icon |
+| Files | `index.html` (markup, styles, script), `sw.js` (offline cache), a web app manifest and an icon, plus `devtest.html` for the device test |
 | Hosting | [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages) from a public repository: free, with a fixed github.io address and the HTTPS the offline cache needs. It only delivers the files; nothing is sent back. The site is public but holds only the app's code. |
-| Storage | One versioned JSON object in localStorage: the active tab and the tab list (labels and colours), then items, removed items and ink strokes per fridge |
+| Storage | One versioned JSON object in localStorage: the active tab and the tab list (labels and colours), then items, removed items and ink strokes per fridge. Each stroke is a string of whole-number steps in half points, which keeps a full pad to a few hundred KB |
 | Input | Pointer Events. The pad accepts pen input only. |
 | Layout | Follows the layout agreed in Claude Design; must work at 1024 × 768 pt and 768 × 1024 pt |
 
@@ -139,6 +143,8 @@ Build order:
 5. Hardening: offline cache, gesture lock-down and the unreadable-data fallback.
 6. iPad setup and the acceptance checks.
 
+Status: steps 3 to 5 are built for landscape, and step 1 is done for landscape only. The step 2 page (`devtest.html`) is ready to run on the iPad.
+
 ## iPad setup
 
 Built-in settings lock the iPad to the app and keep the screen on; no extra software is needed. The Guided Access steps follow the [Apple iPad User Guide](https://support.apple.com/guide/ipad/guided-access-ipada16d1374/16.0/ipados/16.0).
@@ -149,7 +155,7 @@ Built-in settings lock the iPad to the app and keep the screen on; no extra soft
 4. Set Auto-Lock to Never in Settings > Display & Brightness, and lower the brightness.
 5. Open the page in Safari, choose Share > Add to Home Screen, and launch it from that icon from then on.
 6. In Settings > Accessibility > Guided Access, switch it on and set a passcode. Set Display Auto-Lock there so the screen never locks.
-7. Check that Rotation Lock is off in Control Center. Then open the app and triple-click the Home button. Under Options, turn off Top Button and Volume Buttons; leave Motion, Keyboards and Touch on so the screen can rotate. Tap Start.
+7. Until portrait is built, turn Rotation Lock on in Control Center with the iPad in landscape. Then open the app and triple-click the Home button. Under Options, turn off Top Button, Volume Buttons and Motion; leave Keyboards and Touch on. Tap Start. Once portrait is built, turn Rotation Lock off and leave Motion on so the screen can rotate.
 8. Leave the iPad on its charger. To exit, triple-click the Home button and enter the passcode.
 
 ## Risks and accepted trade-offs
@@ -163,11 +169,11 @@ The main accepted risk is that the lists live only on this iPad.
 | Guided Access may not resume by itself after a flat battery or restart. | Try it during setup and keep the recovery steps on a note beside the iPad. |
 | Safari 16 is the ceiling for good. | Avoid newer web features and test on the iPad itself. |
 | A battery held at full charge for years can swell. | Keep brightness low and check the case for bulging every few months. |
-| A very large ink pad changes shape when the iPad turns, which could crop or shrink the ink. | Settle in the design how ink stays whole in both orientations, before the pad is built. |
+| A very large ink pad changes shape when the iPad turns, which could crop or shrink the ink. | Settled: ink lives on a fixed page that is scaled to fit and never cropped, so it will show smaller in portrait. Portrait itself is still to be designed. |
 
 ## Acceptance checks
 
-The build is done when every check below passes on the iPad itself.
+The build is done when every check below passes on the iPad itself. Until portrait is built, the portrait parts of these checks wait.
 
 - [ ] Every screen matches the layout agreed in Claude Design, in portrait and landscape.
 - [ ] From any screen, a visible control leads back to the home page.

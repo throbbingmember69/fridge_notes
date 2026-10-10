@@ -652,20 +652,30 @@ input::placeholder { color: var(--hint); }
   const fridgeScreen = $('fridge');
 
   // Per-fridge memory that is not saved: kept with a deleted tab so Undo can bring it back.
-  function forgetFridge(id, record) { /* filled in by the ink pad and list */ }
-  function rememberFridge(id, record) { /* filled in by the ink pad and list */ }
+  function forgetFridge(id, record) {
+    record.history = history[id];
+    delete history[id];
+  }
+
+  function rememberFridge(id, record) {
+    if (record.history) history[id] = record.history;
+  }
 
   function openFridge(id) {
     if (!tabById(id)) return;
     commitRename(true);
     ui.menuOpen = false;
     data.active = id;
+    erasing = false;
+    pen = null;
     save();
     showScreen();
   }
 
   function goHome() {
     data.active = null;
+    erasing = false;
+    pen = null;
     save();
     showScreen();
   }
@@ -673,7 +683,250 @@ input::placeholder { color: var(--hint); }
   function renderFridge() {
     const tab = activeTab();
     $('fridgeName').textContent = tab.name;
+    layoutPad();
+    renderInkButtons();
   }
+
+  /* ---------- Ink pad ---------- */
+  const padArea = $('padArea');
+  const padEl = $('pad');
+  const canvas = $('padCanvas');
+  const g = canvas.getContext('2d');
+  const LINE = 3; // page units
+  const ERASE_RADIUS = 14; // page units
+  const HISTORY_MAX = 50;
+  const history = {}; // fridge id -> earlier stroke lists for Undo, newest last (not saved)
+  let erasing = false;
+  let pen = null; // the Pencil stroke or erase gesture in progress
+
+  // The page keeps its shape: it is scaled to fit the space and centred, so ink is never cropped.
+  function layoutPad() {
+    if (fridgeScreen.hidden) return;
+    const w = padArea.clientWidth;
+    const h = padArea.clientHeight;
+    if (!w || !h) return;
+    const s = Math.min(w / PAGE_W, h / PAGE_H);
+    const pw = PAGE_W * s;
+    const ph = PAGE_H * s;
+    padEl.style.width = pw + 'px';
+    padEl.style.height = ph + 'px';
+    padEl.style.left = (w - pw) / 2 + 'px';
+    padEl.style.top = (h - ph) / 2 + 'px';
+    const dpr = window.devicePixelRatio || 1;
+    const cw = Math.round(pw * dpr);
+    const ch = Math.round(ph * dpr);
+    if (canvas.width !== cw || canvas.height !== ch) {
+      canvas.width = cw;
+      canvas.height = ch;
+    }
+    redraw();
+  }
+
+  function prepare() {
+    g.setTransform(canvas.width / PAGE_W, 0, 0, canvas.height / PAGE_H, 0, 0);
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.strokeStyle = '#1f2a37';
+    g.lineWidth = LINE;
+  }
+
+  // Smooth path: curves through each point, ending on the midpoints between points.
+  function trace(pts) {
+    const n = pts.length / 2;
+    g.beginPath();
+    g.moveTo(pts[0], pts[1]);
+    if (n === 1) { g.lineTo(pts[0] + 0.01, pts[1]); return; }
+    for (let i = 1; i < n - 1; i++) {
+      g.quadraticCurveTo(pts[2 * i], pts[2 * i + 1], (pts[2 * i] + pts[2 * i + 2]) / 2, (pts[2 * i + 1] + pts[2 * i + 3]) / 2);
+    }
+    g.lineTo(pts[2 * n - 2], pts[2 * n - 1]);
+  }
+
+  // While writing, draw only the piece of the path that the newest point settles.
+  function drawSettled(pts) {
+    const n = pts.length / 2;
+    if (n === 2) return;
+    g.beginPath();
+    if (n === 1) {
+      g.moveTo(pts[0], pts[1]);
+      g.lineTo(pts[0] + 0.01, pts[1]);
+    } else {
+      const a = n - 3;
+      const b = n - 2;
+      if (a === 0) g.moveTo(pts[0], pts[1]);
+      else g.moveTo((pts[2 * a] + pts[2 * b]) / 2, (pts[2 * a + 1] + pts[2 * b + 1]) / 2);
+      g.quadraticCurveTo(pts[2 * b], pts[2 * b + 1], (pts[2 * b] + pts[2 * b + 2]) / 2, (pts[2 * b + 1] + pts[2 * b + 3]) / 2);
+    }
+    g.stroke();
+  }
+
+  function drawEnd(pts) {
+    const n = pts.length / 2;
+    if (n < 2) return;
+    g.beginPath();
+    if (n === 2) g.moveTo(pts[0], pts[1]);
+    else g.moveTo((pts[2 * n - 4] + pts[2 * n - 2]) / 2, (pts[2 * n - 3] + pts[2 * n - 1]) / 2);
+    g.lineTo(pts[2 * n - 2], pts[2 * n - 1]);
+    g.stroke();
+  }
+
+  function redraw() {
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, canvas.width, canvas.height);
+    if (data.active == null) return;
+    prepare();
+    const strokes = data.fridges[data.active].strokes;
+    strokes.forEach((st) => { trace(st.pts); g.stroke(); });
+    if (pen && pen.pts) { trace(pen.pts); g.stroke(); }
+    $('padHint').hidden = strokes.length > 0 || !!(pen && pen.pts);
+  }
+
+  function renderInkButtons() {
+    if (data.active == null) return;
+    const h = history[data.active];
+    $('undoBtn').setAttribute('aria-disabled', String(!(h && h.length)));
+    $('clearBtn').setAttribute('aria-disabled', String(!data.fridges[data.active].strokes.length));
+    const eraseBtn = $('eraseBtn');
+    eraseBtn.textContent = erasing ? 'Erasing' : 'Erase';
+    eraseBtn.setAttribute('aria-pressed', String(erasing));
+    eraseBtn.classList.toggle('dark', erasing);
+    canvas.style.cursor = erasing ? 'cell' : 'crosshair';
+  }
+
+  function remember(id, strokes) {
+    const h = history[id] || (history[id] = []);
+    h.push(strokes);
+    if (h.length > HISTORY_MAX) h.shift();
+  }
+
+  function toPage(e, rect) {
+    const x = clamp(((e.clientX - rect.left) * PAGE_W) / rect.width, 0, PAGE_W);
+    const y = clamp(((e.clientY - rect.top) * PAGE_H) / rect.height, 0, PAGE_H);
+    return [Math.round(x * 2) / 2, Math.round(y * 2) / 2];
+  }
+
+  function segmentDistance(px, py, ax, ay, bx, by) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len = dx * dx + dy * dy;
+    const t = len ? clamp(((px - ax) * dx + (py - ay) * dy) / len, 0, 1) : 0;
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+
+  function touches(st, x, y) {
+    const r = ERASE_RADIUS;
+    const b = st.box;
+    if (x < b[0] - r || x > b[2] + r || y < b[1] - r || y > b[3] + r) return false;
+    const p = st.pts;
+    if (p.length === 2) return Math.hypot(p[0] - x, p[1] - y) <= r;
+    for (let i = 2; i < p.length; i += 2) {
+      if (segmentDistance(x, y, p[i - 2], p[i - 1], p[i], p[i + 1]) <= r) return true;
+    }
+    return false;
+  }
+
+  // Erasing removes whole strokes. Fast moves are filled in so no stroke is skipped.
+  function eraseTo(x, y) {
+    const f = data.fridges[pen.fridge];
+    const from = pen.last || [x, y];
+    const steps = Math.max(1, Math.ceil(Math.hypot(x - from[0], y - from[1]) / (ERASE_RADIUS / 2)));
+    pen.last = [x, y];
+    let keep = f.strokes;
+    for (let i = 1; i <= steps; i++) {
+      const px = from[0] + ((x - from[0]) * i) / steps;
+      const py = from[1] + ((y - from[1]) * i) / steps;
+      keep = keep.filter((st) => !touches(st, px, py));
+    }
+    if (keep.length === f.strokes.length) return;
+    f.strokes = keep;
+    pen.hit = true;
+    redraw();
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    // Only the Pencil writes; fingers and palms do nothing. A mouse also writes, for development.
+    if (e.pointerType === 'touch' || e.button > 0 || pen || data.active == null) return;
+    e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* already released */ }
+    pen = { id: e.pointerId, rect: canvas.getBoundingClientRect(), fridge: data.active };
+    const p = toPage(e, pen.rect);
+    if (erasing) {
+      pen.before = data.fridges[pen.fridge].strokes.slice();
+      eraseTo(p[0], p[1]);
+      return;
+    }
+    pen.pts = p;
+    $('padHint').hidden = true;
+    prepare();
+    drawSettled(pen.pts);
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!pen || e.pointerId !== pen.id) return;
+    const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+    (list.length ? list : [e]).forEach((ev) => {
+      const p = toPage(ev, pen.rect);
+      if (!pen.pts) { eraseTo(p[0], p[1]); return; }
+      const pts = pen.pts;
+      const n = pts.length;
+      if (Math.abs(p[0] - pts[n - 2]) + Math.abs(p[1] - pts[n - 1]) < 1) return;
+      pts.push(p[0], p[1]);
+      drawSettled(pts);
+    });
+  });
+
+  function endPen(e) {
+    if (!pen || e.pointerId !== pen.id) return;
+    const done = pen;
+    pen = null;
+    const f = data.fridges[done.fridge];
+    if (!f) return;
+    if (done.pts) {
+      prepare();
+      drawEnd(done.pts);
+      remember(done.fridge, f.strokes.slice());
+      f.strokes.push(makeStroke(done.pts));
+      save();
+    } else if (done.hit) {
+      remember(done.fridge, done.before);
+      save();
+    }
+    renderInkButtons();
+  }
+  canvas.addEventListener('pointerup', endPen);
+  canvas.addEventListener('pointercancel', endPen);
+
+  // Stops iPadOS Scribble from taking over Pencil strokes on the pad (checked with devtest.html).
+  const stylusGuard = (e) => {
+    const t = e.touches && e.touches[0];
+    if (t && t.touchType === 'stylus') e.preventDefault();
+  };
+  canvas.addEventListener('touchstart', stylusGuard, { passive: false });
+  canvas.addEventListener('touchmove', stylusGuard, { passive: false });
+
+  $('undoBtn').addEventListener('click', () => {
+    const h = history[data.active];
+    if (!h || !h.length) return;
+    data.fridges[data.active].strokes = h.pop();
+    save();
+    redraw();
+    renderInkButtons();
+  });
+
+  $('eraseBtn').addEventListener('click', () => {
+    erasing = !erasing;
+    renderInkButtons();
+  });
+
+  $('clearBtn').addEventListener('click', () => {
+    const f = data.fridges[data.active];
+    if (!f.strokes.length) return;
+    remember(data.active, f.strokes.slice());
+    f.strokes = [];
+    save();
+    redraw();
+    renderInkButtons();
+  });
 
   function showScreen() {
     const tab = activeTab();
@@ -692,7 +945,12 @@ input::placeholder { color: var(--hint); }
   if (loaded.resave) save();
   showScreen();
   renderBanner();
-  if (window.ResizeObserver) new ResizeObserver(fitLabels).observe(grid);
+  if (window.ResizeObserver) {
+    new ResizeObserver(fitLabels).observe(grid);
+    new ResizeObserver(layoutPad).observe(padArea);
+  } else {
+    window.addEventListener('resize', () => { fitLabels(); layoutPad(); });
+  }
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitLabels);
   document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
   window.addEventListener('pagehide', flushSave);

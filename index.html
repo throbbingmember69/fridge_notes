@@ -3,6 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Fridge notes">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#eef1f3">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
 <title>Fridge notes</title>
 <style>
 :root {
@@ -16,8 +25,10 @@
   --veil: rgba(255, 255, 255, 0.7);
   --font: -apple-system, 'SF Pro Display', system-ui, 'Helvetica Neue', sans-serif;
 }
-html, body { margin: 0; height: 100%; }
-body { background: var(--ground); color: var(--ink); font-family: var(--font); -webkit-text-size-adjust: 100%; }
+/* Locked down: no page scroll, bounce, zoom, callouts or text selection outside text fields. */
+html, body { position: fixed; left: 0; top: 0; right: 0; bottom: 0; margin: 0; overflow: hidden; overscroll-behavior: none; }
+body { background: var(--ground); color: var(--ink); font-family: var(--font); -webkit-text-size-adjust: 100%; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+input { -webkit-user-select: text; user-select: text; }
 [hidden] { display: none !important; }
 button, input { font-family: inherit; }
 button { cursor: pointer; }
@@ -1143,6 +1154,44 @@ input::placeholder { color: var(--hint); }
 
   $('homeBtn').addEventListener('click', goHome);
 
+  /* ---------- Idle and lock-down ---------- */
+  const KEYBOARD_IDLE_MS = 60 * 1000;
+  const HOME_IDLE_MS = 5 * 60 * 1000;
+  let keyboardTimer = 0;
+  let homeTimer = 0;
+
+  // Back to the home page with menus and modes closed. Typed text stays in memory.
+  function idleHome() {
+    commitRename(true);
+    commitRow(true);
+    ui.menuOpen = false;
+    ui.deleteMode = false;
+    ui.confirmId = null;
+    if (data.active != null) goHome();
+    else renderHome();
+  }
+
+  function nudge() {
+    clearTimeout(keyboardTimer);
+    clearTimeout(homeTimer);
+    keyboardTimer = setTimeout(() => {
+      const a = document.activeElement;
+      if (a && a.tagName === 'INPUT') a.blur();
+    }, KEYBOARD_IDLE_MS);
+    homeTimer = setTimeout(idleHome, HOME_IDLE_MS);
+  }
+  ['pointerdown', 'keydown', 'input'].forEach((type) => document.addEventListener(type, nudge, true));
+
+  ['gesturestart', 'gesturechange', 'gestureend', 'contextmenu', 'dblclick', 'dragstart'].forEach((type) => {
+    document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+  });
+  document.addEventListener('selectstart', (e) => {
+    const t = e.target.nodeType === 1 ? e.target : e.target.parentElement;
+    if (!t || t.tagName !== 'INPUT') e.preventDefault();
+  });
+  // iOS can leave the page shifted up after the keyboard closes.
+  document.addEventListener('focusout', () => { setTimeout(() => window.scrollTo(0, 0), 0); });
+
   /* ---------- Start ---------- */
   if (loaded.resave) save();
   showScreen();
@@ -1156,6 +1205,8 @@ input::placeholder { color: var(--hint); }
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitLabels);
   document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
   window.addEventListener('pagehide', flushSave);
+  nudge();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { /* runs online only */ });
 })();
 </script>
 </body>
